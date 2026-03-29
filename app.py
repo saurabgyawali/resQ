@@ -9,17 +9,14 @@ from modules import (
     apply_styles,
     render_animation,
     render_call_banner,
-    render_case_card,
     render_contacts_card,
     render_handoff_summary,
     render_profile_card,
     render_top_nav,
-    speak_text,
 )
 from vertex_helper import triage_turn
 
 st.set_page_config(page_title="ResQ", page_icon="🚑", layout="wide")
-
 
 PAGES = ["Emergency", "Profile", "Contacts", "Learn"]
 
@@ -36,6 +33,9 @@ def init_state():
         "handoff_summary": "",
         "voice_output": True,
         "action_mode": False,
+        "current_instruction": "",
+        "current_question": "",
+        "current_why": "",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -45,19 +45,20 @@ def init_state():
 def current_page_from_query() -> str:
     raw = st.query_params.get("page", "Emergency")
     for page in PAGES:
-        if raw.lower() == page.lower():
+        if str(raw).strip().lower() == page.lower():
             return page
     return "Emergency"
 
 
-def append_message(role: str, content: str):
+def append_message(role: str, content: str, modality: str = "text") -> None:
     st.session_state.chat_history.append({"role": role, "content": content})
+
     log_message(
         {
             "message_id": str(uuid.uuid4()),
             "session_id": st.session_state.session_id,
             "role": role,
-            "modality": "text",
+            "modality": modality,
             "text": content,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -67,46 +68,93 @@ def append_message(role: str, content: str):
 def run_triage(user_text: str, audio_file=None, image_file=None):
     if not user_text and not audio_file and not image_file:
         st.warning("Describe what is happening, record audio, or add a camera image.")
-        return
+        return None
 
-    append_message("user", user_text or "[voice/camera input]")
+    user_display = user_text.strip() if user_text else "[voice/camera input]"
+    modality = "text"
+    if audio_file and image_file:
+        modality = "multimodal"
+    elif audio_file:
+        modality = "voice"
+    elif image_file:
+        modality = "camera"
+
+    append_message("user", user_display, modality=modality)
 
     image_bytes = image_file.getvalue() if image_file else None
     image_mime = getattr(image_file, "type", None) if image_file else None
     audio_bytes = audio_file.getvalue() if audio_file else None
     audio_mime = getattr(audio_file, "type", None) if audio_file else None
 
+    old_case = st.session_state.get("current_case")
+
     result = triage_turn(
-        user_text=user_text or "Use the attached media to understand the emergency.",
+        user_text=user_text or "Please infer the emergency context from the attached media.",
         history=st.session_state.chat_history,
         profile=DEMO_PROFILE,
         image_bytes=image_bytes,
         image_mime=image_mime,
         audio_bytes=audio_bytes,
         audio_mime=audio_mime,
+        current_case=st.session_state.get("current_case"),
+        current_instruction=st.session_state.get("current_instruction", ""),
+        symptom_start_time=st.session_state.get("symptom_start_time", ""),
     )
 
-    append_message("assistant", result["reply"])
+    assistant_reply = result.get("reply", "I need one more short detail to continue safely.")
+    append_message("assistant", assistant_reply, modality="ai")
 
-    st.session_state.current_case = result["case_id"]
-    st.session_state.escalate_now = result["escalate_now"] or result["call_now"]
-    st.session_state.handoff_summary = result["handoff_summary"]
-    st.session_state.current_step = 0
+    st.session_state.current_case = result.get("case_id", st.session_state.get("current_case") or "other")
+    st.session_state.escalate_now = bool(result.get("escalate_now", False) or result.get("call_now", False))
+    st.session_state.handoff_summary = result.get("handoff_summary", "")
+    st.session_state.current_instruction = result.get("current_instruction", "")
+    st.session_state.current_question = result.get("next_question", "")
+    st.session_state.current_why = result.get("why", "")
     st.session_state.action_mode = True
+
+    if old_case != st.session_state.current_case:
+        st.session_state.current_step = 0
 
     log_session(
         {
             "session_id": st.session_state.session_id,
             "user_id": DEMO_PROFILE["user_id"],
             "started_at": datetime.now(timezone.utc).isoformat(),
-            "last_case": result["case_id"],
+            "last_case": st.session_state.current_case,
             "escalated": bool(st.session_state.escalate_now),
             "symptom_start_time": st.session_state.symptom_start_time,
             "location_text": "Demo mode",
-            "triage_summary": result["handoff_summary"],
+            "triage_summary": st.session_state.handoff_summary,
             "status": "active",
         }
     )
+
+    return result
+
+
+def reset_demo() -> None:
+    st.session_state.chat_history = []
+    st.session_state.current_case = None
+    st.session_state.current_step = 0
+    st.session_state.escalate_now = False
+    st.session_state.handoff_summary = ""
+    st.session_state.action_mode = False
+    st.session_state.current_instruction = ""
+    st.session_state.current_question = ""
+    st.session_state.current_why = ""
+    st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.symptom_start_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def render_chat_history() -> None:
+    if not st.session_state.chat_history:
+        st.info("ResQ will ask short follow-up questions here.")
+        return
+
+    for msg in st.session_state.chat_history:
+        role = "assistant" if msg["role"] == "assistant" else "user"
+        with st.chat_message(role):
+            st.write(msg["content"])
 
 
 def render_emergency_page():
@@ -123,7 +171,7 @@ def render_emergency_page():
               <div class="hero-title">What is happening?</div>
               <div class="hero-subtitle">
                 Describe the emergency, record a voice note, or use the camera if it is safe.
-                This prototype always keeps emergency escalation visible.
+                ResQ will route you into guided action mode.
               </div>
             </div>
             """,
@@ -141,47 +189,50 @@ def render_emergency_page():
         audio_file = None
         image_file = None
 
-        st.markdown('<div class="center-input">', unsafe_allow_html=True)
-        if mode == "Type":
-            user_text = st.text_area(
-                "Describe the emergency",
-                placeholder="Example: My dad suddenly has slurred speech and his right arm is weak.",
-                height=120,
-                label_visibility="collapsed",
-            )
-        elif mode == "Voice":
-            user_text = st.text_area(
-                "Optional typed context",
-                placeholder="Optional: add any quick context here",
-                height=100,
-                label_visibility="collapsed",
-            )
-            audio_file = st.audio_input("Record symptoms")
-        else:
-            user_text = st.text_area(
-                "Optional typed context",
-                placeholder="Optional: add any quick context here",
-                height=100,
-                label_visibility="collapsed",
-            )
-            image_file = st.camera_input("Capture image if safe")
+        with st.container():
+            if mode == "Type":
+                user_text = st.text_area(
+                    "Describe the emergency",
+                    placeholder="Example: My dad suddenly has slurred speech and his right arm is weak.",
+                    height=120,
+                    label_visibility="collapsed",
+                )
+            elif mode == "Voice":
+                user_text = st.text_area(
+                    "Optional typed context",
+                    placeholder="Optional: add any quick context here",
+                    height=100,
+                    label_visibility="collapsed",
+                )
+                audio_file = st.audio_input("Record symptoms")
+            else:
+                user_text = st.text_area(
+                    "Optional typed context",
+                    placeholder="Optional: add any quick context here",
+                    height=100,
+                    label_visibility="collapsed",
+                )
+                image_file = st.camera_input("Capture image if safe")
 
+        st.write("")
         quick_cols = st.columns(5)
         quick_cases = [
-            "Person is unconscious",
-            "Chest pain",
-            "Heavy bleeding",
-            "Choking",
-            "Stroke symptoms",
+            ("Person is unconscious", "The person is unconscious and may not be breathing normally."),
+            ("Chest pain", "The person has severe chest pain and may be having a heart attack."),
+            ("Heavy bleeding", "There is heavy bleeding that will not stop."),
+            ("Choking", "The person is choking and cannot speak or breathe properly."),
+            ("Stroke symptoms", "The person has slurred speech, face droop, or one-sided weakness."),
         ]
-        for col, label in zip(quick_cols, quick_cases):
+
+        for col, (label, prompt) in zip(quick_cols, quick_cases):
             with col:
                 if st.button(label, use_container_width=True):
-                    run_triage(label)
+                    run_triage(prompt)
+                    st.rerun()
 
         if st.button("Start emergency guidance", type="primary", use_container_width=True):
             run_triage(user_text, audio_file=audio_file, image_file=image_file)
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.rerun()
 
     else:
         case_key = st.session_state.current_case or "other"
@@ -190,42 +241,71 @@ def render_emergency_page():
         if st.session_state.escalate_now:
             render_call_banner(case_data["title"], can_cancel=True)
 
+        follow_up = st.chat_input("Answer the last question or add a new detail")
+        if follow_up:
+            run_triage(follow_up)
+            st.rerun()
+
         left, right = st.columns([1.15, 0.85], gap="large")
 
         with left:
-            st.markdown('<div class="action-card">', unsafe_allow_html=True)
             st.markdown("### Live guidance")
-            for msg in st.session_state.chat_history[-6:]:
-                speaker = "You" if msg["role"] == "user" else "ResQ"
-                st.markdown(f"**{speaker}:** {msg['content']}")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            follow_up = st.chat_input("Answer the last question or add new details")
-            if follow_up:
-                run_triage(follow_up)
+            render_chat_history()
 
         with right:
             if case_data.get("animation"):
                 render_animation(case_data["animation"], case_data["title"])
 
-            render_case_card(case_data, st.session_state.current_step)
+            st.markdown("### Current guidance")
+            current_instruction = (
+                st.session_state.get("current_instruction")
+                or case_data["steps"][st.session_state.current_step]
+            )
 
-            step_cols = st.columns(3)
-            with step_cols[0]:
-                if st.button("Previous step", use_container_width=True, disabled=st.session_state.current_step == 0):
-                    st.session_state.current_step -= 1
-                    st.rerun()
-            with step_cols[1]:
-                if st.button("Read aloud", use_container_width=True):
-                    speak_text(case_data["steps"][st.session_state.current_step])
-            with step_cols[2]:
-                if st.button(
-                    "Next step",
-                    use_container_width=True,
-                    disabled=st.session_state.current_step >= len(case_data["steps"]) - 1,
-                ):
-                    st.session_state.current_step += 1
-                    st.rerun()
+            st.markdown(
+                f"""
+                <div class="instruction-box">
+                  <div class="instruction-title">Do this now</div>
+                  <div>{current_instruction}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if st.session_state.get("current_why"):
+                st.markdown(
+                    f"""
+                    <div class="glass-card" style="margin-top:0.75rem;">
+                      <strong>Why this matters</strong><br>
+                      {st.session_state.current_why}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            if st.session_state.get("current_question"):
+                st.markdown(
+                    f"""
+                    <div class="glass-card" style="margin-top:0.75rem;">
+                      <strong>Next question</strong><br>
+                      {st.session_state.current_question}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown("### Protocol steps")
+            for idx, step in enumerate(case_data["steps"]):
+                label = "Current step" if idx == st.session_state.current_step else f"Step {idx + 1}"
+                st.markdown(
+                    f"""
+                    <div class="instruction-box">
+                      <div class="instruction-title">{label}</div>
+                      <div>{step}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             render_handoff_summary(
                 summary=st.session_state.handoff_summary or case_data["summary"],
@@ -240,14 +320,14 @@ def render_emergency_page():
                     st.session_state.current_case = None
                     st.session_state.current_step = 0
                     st.session_state.escalate_now = False
+                    st.session_state.current_instruction = ""
+                    st.session_state.current_question = ""
+                    st.session_state.current_why = ""
                     st.rerun()
+
             with action_cols[1]:
                 if st.button("Reset demo", use_container_width=True):
-                    for key in ["chat_history", "current_case", "current_step", "handoff_summary"]:
-                        st.session_state[key] = [] if key == "chat_history" else 0 if key == "current_step" else None
-                    st.session_state.action_mode = False
-                    st.session_state.escalate_now = False
-                    st.session_state.session_id = str(uuid.uuid4())
+                    reset_demo()
                     st.rerun()
 
 
@@ -257,11 +337,17 @@ def render_learn_page():
         '<div class="page-subtitle">Judge-friendly demo page for the five MVP emergency guides.</div>',
         unsafe_allow_html=True,
     )
+
     cols = st.columns(2)
-    for idx, key in enumerate(["not_breathing", "stroke", "choking", "severe_bleeding", "chest_pain"]):
+    cases = ["not_breathing", "stroke", "choking", "severe_bleeding", "chest_pain"]
+
+    for idx, key in enumerate(cases):
+        case = CASE_GUIDES[key]
         with cols[idx % 2]:
-            case = CASE_GUIDES[key]
-            st.markdown(f"<div class='glass-card'><h3>{case['title']}</h3><p>{case['summary']}</p></div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='glass-card'><h3>{case['title']}</h3><p>{case['summary']}</p></div>",
+                unsafe_allow_html=True,
+            )
             if case["animation"]:
                 render_animation(case["animation"], case["title"])
 

@@ -1,6 +1,6 @@
 ### VARIABLES TO CHANGE - START
 PROJECT_ID=daniel-reyes-uprm
-SERVICE_NAME=study-group-finder
+SERVICE_NAME=resq-app
 ### VARIABLES TO CHANGE - END
 
 # ----------- Manual Deployment ------------ #
