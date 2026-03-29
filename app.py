@@ -40,6 +40,7 @@ def init_state():
         "current_question": "",
         "current_why": "",
         "profile": DEMO_PROFILE,
+        "_camera_open": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -174,6 +175,7 @@ def reset_demo() -> None:
     st.session_state.current_why = ""
     st.session_state.session_id = str(uuid.uuid4())
     st.session_state.pop("_last_audio_hash", None)
+    st.session_state._camera_open = False
     now = datetime.now(timezone.utc)
     st.session_state.session_started_at = now.isoformat()
     st.session_state.symptom_start_time = now.strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -338,8 +340,30 @@ def render_emergency_page():
         left, right = st.columns([1.2, 0.8], gap="large")
 
         with left:
-            with st.container(height=500, border=False):
+            cam_open = st.session_state._camera_open
+            # Shrink chat height when camera is visible so nothing gets pushed off-screen
+            chat_height = 340 if cam_open else 500
+
+            with st.container(height=chat_height, border=False):
                 render_chat_history()
+
+            # ── Camera attachment row ──────────────────────────────
+            st.markdown('<div class="cam-attach-row"></div>', unsafe_allow_html=True)
+            cam_label = "✕  Close camera" if cam_open else "📷  Add a photo"
+            if st.button(cam_label, key="cam_toggle"):
+                st.session_state._camera_open = not cam_open
+                st.rerun()
+
+            if cam_open:
+                image_file = st.camera_input(
+                    "Take a photo of the situation",
+                    key="action_cam",
+                    label_visibility="collapsed",
+                )
+                if image_file is not None:
+                    if run_triage("", image_file=image_file):
+                        st.session_state._camera_open = False
+                        st.rerun()
 
         with right:
             if case_data.get("animation"):
@@ -351,6 +375,7 @@ def render_emergency_page():
                 symptom_start=st.session_state.symptom_start_time,
             )
 
+            st.markdown('<div style="margin-top:1.25rem;"></div>', unsafe_allow_html=True)
             if st.button("← Back to intake", use_container_width=True):
                 st.session_state.action_mode = False
                 st.session_state.current_case = None
@@ -360,6 +385,7 @@ def render_emergency_page():
                 st.session_state.current_question = ""
                 st.session_state.current_why = ""
                 st.session_state.chat_history = []
+                st.session_state._camera_open = False
                 st.session_state.pop("_last_audio_hash", None)
                 st.rerun()
 

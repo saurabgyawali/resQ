@@ -309,17 +309,108 @@ def render_profile_card(profile: dict) -> None:
 
 def render_contacts_card(profile: dict) -> None:
     contact = profile["emergency_contact"]
+    name = contact["name"]
+    relationship = contact["relationship"]
+    phone = contact["phone"]
+    first_name = name.split()[0]
+    initials = "".join(w[0].upper() for w in name.split()[:2])
+
+    st.markdown('<div class="page-title">Emergency Contacts</div>', unsafe_allow_html=True)
     st.markdown(
-        f"""
-        <div class="summary-card">
-          <div class="page-title">Emergency Contact</div>
-          <div><strong>Name:</strong> {contact['name']}</div>
-          <div><strong>Relationship:</strong> {contact['relationship']}</div>
-          <div><strong>Phone:</strong> {contact['phone']}</div>
-        </div>
-        """,
+        '<div class="page-subtitle">Reach the right people instantly when it counts.</div>',
         unsafe_allow_html=True,
     )
+
+    left, right = st.columns([1.05, 0.95], gap="large")
+
+    with left:
+        # ── Contact card + call button ─────────────────────────
+        st.markdown(
+            f"""
+            <div class="contact-card">
+              <div class="contact-avatar">{initials}</div>
+              <div class="contact-name">{name}</div>
+              <div class="contact-rel-badge">{relationship}</div>
+              <div class="contact-phone">{phone}</div>
+            </div>
+            <a class="contact-call-btn" href="tel:{phone}">📞&nbsp; Call {first_name}</a>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # ── What to say script ─────────────────────────────────
+        st.markdown(
+            """
+            <div class="glass-card" style="margin-top:1rem;">
+              <div class="instruction-title" style="margin-bottom:0.75rem;">What to say</div>
+              <div class="say-item">📍&nbsp; Share your exact location first</div>
+              <div class="say-item">🚨&nbsp; Describe the emergency briefly and clearly</div>
+              <div class="say-item">👤&nbsp; Name the person who needs help</div>
+              <div class="say-item">📋&nbsp; Mention any known conditions or medications</div>
+              <div class="say-item last">✅&nbsp; Stay on the line until help arrives</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with right:
+        # ── Quick-dial emergency numbers ───────────────────────
+        st.markdown(
+            """
+            <div class="glass-card" style="margin-bottom:1rem;">
+              <div class="instruction-title" style="margin-bottom:0.875rem;">Quick Dial</div>
+
+              <div class="emg-row">
+                <div>
+                  <div class="emg-label">Emergency Services</div>
+                  <div class="emg-desc">Police · Fire · Ambulance</div>
+                </div>
+                <a class="emg-call emg-911" href="tel:911">📞 911</a>
+              </div>
+
+              <div class="emg-row">
+                <div>
+                  <div class="emg-label">Poison Control</div>
+                  <div class="emg-desc">Ingestion or exposure</div>
+                </div>
+                <a class="emg-call" href="tel:18002221222">800-222-1222</a>
+              </div>
+
+              <div class="emg-row">
+                <div>
+                  <div class="emg-label">Crisis Helpline</div>
+                  <div class="emg-desc">Mental health emergencies</div>
+                </div>
+                <a class="emg-call" href="tel:988">📞 988</a>
+              </div>
+
+              <div class="emg-row last">
+                <div>
+                  <div class="emg-label">Non-Emergency Line</div>
+                  <div class="emg-desc">Local police, non-urgent</div>
+                </div>
+                <a class="emg-call" href="tel:311">📞 311</a>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # ── Before you call tip ────────────────────────────────
+        st.markdown(
+            """
+            <div class="glass-card">
+              <div class="instruction-title" style="margin-bottom:0.5rem;">Before you call</div>
+              <p style="font-size:0.9rem;line-height:1.7;color:var(--t2);margin:0;">
+                Stay calm and speak clearly. Have the patient's name, age, location, and
+                current symptoms ready. If calling 911, stay on the line — dispatchers can
+                guide you through first-aid steps until help arrives.
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 
 def render_handoff_summary(summary: str, profile: dict, symptom_start: str) -> None:
