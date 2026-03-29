@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.python-version
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Streamlit / local config
+.streamlit/secrets.toml
+
+# Environment / credentials
+.env
+.env.*
+*.pem
+*.key
+*.json
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build / test / cache
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Local archives / cleanup artifacts
+archive/
+cleansetup.sh
+RESQ_SETUP_NOTES.md
+
+# Local assets you may regenerate
+assets/animations/*.tmp
+
+# Optional: keep placeholder/demo assets tracked, so do NOT ignore gifs by default
+# assets/animations/
+
+# Deployment leftovers
+dist/
+build/

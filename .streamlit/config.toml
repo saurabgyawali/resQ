@@ -1,0 +1,18 @@
+[server]
+port = 8080
+address = "0.0.0.0"
+enableCORS = false
+enableXsrfProtection = false
+runOnSave = true
+
+[client]
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#FCD059"
+backgroundColor = "#F1EFE9"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#2B2B2B"
+linkUnderline = false
+showSidebarBorder = false

@@ -1,0 +1,7 @@
+streamlit
+google-cloud-bigquery
+db-dtypes
+google-cloud-aiplatform
+pandas>=2.2.0
+google-genai>=1.4.0
+

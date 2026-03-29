@@ -1,0 +1,322 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --charcoal: #2B2B2B;
+  --yellow: #FCD059;
+  --white: #FFFFFF;
+  --cream: #FBEFCB;
+  --mist: #F1EFE9;
+  --danger: #D64045;
+
+  --page-bg: linear-gradient(135deg, #F1EFE9 0%, #FBEFCB 100%);
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-strong: rgba(255, 255, 255, 0.92);
+  --border: rgba(43, 43, 43, 0.10);
+
+  --text-main: #2B2B2B;
+  --text-muted: rgba(43, 43, 43, 0.72);
+
+  --shadow-soft: 0 12px 30px rgba(43, 43, 43, 0.10);
+  --shadow-strong: 0 16px 36px rgba(43, 43, 43, 0.14);
+}
+
+html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > .main {
+  font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  color: var(--text-main) !important;
+}
+
+[data-testid="stAppViewContainer"] > .main {
+  background: var(--page-bg);
+}
+
+.block-container {
+  max-width: 1260px;
+  padding-top: 0.8rem !important;
+  padding-bottom: 2rem;
+}
+
+section[data-testid="stSidebar"] {
+  display: none !important;
+}
+
+header[data-testid="stHeader"] {
+  background: transparent !important;
+}
+
+[data-testid="stDecoration"] {
+  display: none !important;
+}
+
+.stMarkdown,
+.stMarkdown p,
+.stMarkdown div,
+.stMarkdown span,
+.stText,
+.stCaption,
+.stSubheader,
+.stHeader,
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] div,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stMarkdownContainer"] strong,
+label,
+p,
+span,
+li,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text-main) !important;
+}
+
+small,
+.muted,
+[data-testid="stCaptionContainer"] {
+  color: var(--text-muted) !important;
+}
+
+a,
+a:hover,
+a:focus,
+a:active,
+a:visited {
+  text-decoration: none !important;
+  color: inherit;
+}
+
+.top-nav-wrap {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 100;
+  margin-bottom: 1.25rem;
+}
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.80);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-soft);
+}
+
+.top-nav-brand {
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+}
+
+.top-nav-links {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.nav-pill {
+  padding: 0.70rem 1rem;
+  border-radius: 999px;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: rgba(43,43,43,0.72) !important;
+  border: 1px solid transparent;
+  transition: all 0.20s ease;
+}
+
+.nav-pill:hover {
+  background: rgba(252,208,89,0.18);
+  border-color: rgba(252,208,89,0.35);
+  transform: translateY(-1px);
+  color: var(--text-main) !important;
+}
+
+.nav-pill.active {
+  background: linear-gradient(180deg, #FCD059 0%, #F5C74B 100%);
+  color: #2B2B2B !important;
+  border-color: rgba(43,43,43,0.08);
+  box-shadow: 0 10px 24px rgba(252,208,89,0.24);
+}
+
+.hero-card,
+.glass-card,
+.action-card,
+.profile-card,
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 1rem;
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-card {
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: 2.3rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.25rem;
+}
+
+.hero-subtitle {
+  font-size: 1.02rem;
+  color: var(--text-muted);
+  max-width: 760px;
+  margin: 0 auto 1rem auto;
+}
+
+.page-title {
+  font-size: 1.95rem;
+  font-weight: 900;
+  margin-bottom: 0.2rem;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.call-banner {
+  background: linear-gradient(180deg, #D64045 0%, #C63439 100%);
+  color: #fff !important;
+  border-radius: 22px;
+  padding: 1rem;
+  box-shadow: 0 14px 28px rgba(214,64,69,0.22);
+  margin-bottom: 1rem;
+}
+
+.call-banner * {
+  color: #fff !important;
+}
+
+.call-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.emergency-badge {
+  display: inline-block;
+  padding: 0.40rem 0.70rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.22);
+  font-weight: 800;
+  font-size: 0.88rem;
+}
+
+.step-chip,
+.tag-chip {
+  display: inline-block;
+  padding: 0.42rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(252,208,89,0.18);
+  border: 1px solid rgba(252,208,89,0.34);
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin-right: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.instruction-box {
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(43,43,43,0.08);
+  border-radius: 18px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.instruction-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 0.3rem;
+}
+
+.warning-box {
+  background: rgba(214,64,69,0.08);
+  border: 1px solid rgba(214,64,69,0.20);
+  border-radius: 18px;
+  padding: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.center-input {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+div[data-baseweb="input"] > div,
+div[data-baseweb="select"] > div,
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox div[data-baseweb="select"] > div {
+  background: rgba(255,255,255,0.84) !important;
+  border: 1px solid rgba(43,43,43,0.10) !important;
+  border-radius: 16px !important;
+  color: var(--text-main) !important;
+}
+
+.stButton > button {
+  border-radius: 16px !important;
+  border: 1px solid rgba(43,43,43,0.10) !important;
+  background: rgba(255,255,255,0.84) !important;
+  color: #2B2B2B !important;
+  font-weight: 800 !important;
+  padding: 0.72rem 1rem !important;
+  box-shadow: var(--shadow-soft) !important;
+  transition: all 0.18s ease !important;
+}
+
+.stButton > button:hover {
+  background: rgba(252,208,89,0.18) !important;
+  border-color: rgba(252,208,89,0.38) !important;
+  transform: translateY(-1px);
+}
+
+.stButton > button[kind="primary"] {
+  background: linear-gradient(180deg, #FCD059 0%, #F5C74B 100%) !important;
+  color: #2B2B2B !important;
+  border-color: rgba(43,43,43,0.08) !important;
+}
+
+.stMetric {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 0.8rem 1rem;
+}
+
+@media (max-width: 900px) {
+  .hero-title {
+    font-size: 1.8rem;
+  }
+
+  .top-nav {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .top-nav-links {
+    justify-content: flex-start;
+  }
+
+  .call-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
