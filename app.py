@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 import streamlit as st
 
@@ -13,8 +14,9 @@ from modules import (
     render_handoff_summary,
     render_profile_card,
     render_top_nav,
+    scroll_to_top,
 )
-from vertex_helper import triage_turn
+from vertex_helper import triage_turn, transcribe_audio
 
 st.set_page_config(page_title="ResQ", page_icon="🚑", layout="wide")
 
@@ -25,6 +27,7 @@ def init_state():
     defaults = {
         "page": "Emergency",
         "session_id": str(uuid.uuid4()),
+        "session_started_at": datetime.now(timezone.utc).isoformat(),
         "chat_history": [],
         "current_case": None,
         "current_step": 0,
@@ -36,6 +39,7 @@ def init_state():
         "current_instruction": "",
         "current_question": "",
         "current_why": "",
+        "profile": DEMO_PROFILE,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -51,7 +55,7 @@ def current_page_from_query() -> str:
 
 
 def append_message(role: str, content: str, modality: str = "text") -> None:
-    st.session_state.chat_history.append({"role": role, "content": content})
+    st.session_state.chat_history.append({"role": role, "content": content, "modality": modality})
 
     log_message(
         {
@@ -70,7 +74,33 @@ def run_triage(user_text: str, audio_file=None, image_file=None):
         st.warning("Describe what is happening, record audio, or add a camera image.")
         return None
 
-    user_display = user_text.strip() if user_text else "[voice/camera input]"
+    # ── Transcribe audio first (separate call, plain text response) ──
+    # This avoids MIME-type issues and JSON-format incompatibility when
+    # audio bytes are sent directly to the triage call.
+    transcript = ""
+    if audio_file:
+        with st.spinner("Transcribing audio…"):
+            transcript = transcribe_audio(
+                audio_file.getvalue(),
+                getattr(audio_file, "type", "audio/wav") or "audio/wav",
+            )
+        if not transcript:
+            st.warning("Could not transcribe audio — please add a text description or try again.")
+            return None
+
+    # ── Build the effective triage text ──────────────────────────────
+    typed = (user_text or "").strip()
+    if transcript and typed:
+        triage_text = f"{typed} {transcript}"
+        user_display = f"{typed} — 🎤 {transcript}"
+    elif transcript:
+        triage_text = transcript
+        user_display = f"🎤 {transcript}"
+    else:
+        triage_text = typed
+        user_display = typed
+
+    # ── Modality tag ─────────────────────────────────────────────────
     modality = "text"
     if audio_file and image_file:
         modality = "multimodal"
@@ -81,25 +111,23 @@ def run_triage(user_text: str, audio_file=None, image_file=None):
 
     append_message("user", user_display, modality=modality)
 
+    # Image is still sent as bytes; audio is now handled via transcript above
     image_bytes = image_file.getvalue() if image_file else None
     image_mime = getattr(image_file, "type", None) if image_file else None
-    audio_bytes = audio_file.getvalue() if audio_file else None
-    audio_mime = getattr(audio_file, "type", None) if audio_file else None
 
     old_case = st.session_state.get("current_case")
 
-    result = triage_turn(
-        user_text=user_text or "Please infer the emergency context from the attached media.",
-        history=st.session_state.chat_history,
-        profile=DEMO_PROFILE,
-        image_bytes=image_bytes,
-        image_mime=image_mime,
-        audio_bytes=audio_bytes,
-        audio_mime=audio_mime,
-        current_case=st.session_state.get("current_case"),
-        current_instruction=st.session_state.get("current_instruction", ""),
-        symptom_start_time=st.session_state.get("symptom_start_time", ""),
-    )
+    with st.spinner("Analyzing emergency…"):
+        result = triage_turn(
+            user_text=triage_text or "Please infer the emergency context from the attached media.",
+            history=st.session_state.chat_history,
+            profile=st.session_state.profile,
+            image_bytes=image_bytes,
+            image_mime=image_mime,
+            current_case=st.session_state.get("current_case"),
+            current_instruction=st.session_state.get("current_instruction", ""),
+            symptom_start_time=st.session_state.get("symptom_start_time", ""),
+        )
 
     assistant_reply = result.get("reply", "I need one more short detail to continue safely.")
     append_message("assistant", assistant_reply, modality="ai")
@@ -114,12 +142,14 @@ def run_triage(user_text: str, audio_file=None, image_file=None):
 
     if old_case != st.session_state.current_case:
         st.session_state.current_step = 0
+    else:
+        st.session_state.current_step = result.get("step_index", st.session_state.current_step)
 
     log_session(
         {
             "session_id": st.session_state.session_id,
-            "user_id": DEMO_PROFILE["user_id"],
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "user_id": st.session_state.profile["user_id"],
+            "started_at": st.session_state.session_started_at,
             "last_case": st.session_state.current_case,
             "escalated": bool(st.session_state.escalate_now),
             "symptom_start_time": st.session_state.symptom_start_time,
@@ -143,169 +173,177 @@ def reset_demo() -> None:
     st.session_state.current_question = ""
     st.session_state.current_why = ""
     st.session_state.session_id = str(uuid.uuid4())
-    st.session_state.symptom_start_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    st.session_state.pop("_last_audio_hash", None)
+    now = datetime.now(timezone.utc)
+    st.session_state.session_started_at = now.isoformat()
+    st.session_state.symptom_start_time = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def _ai_avatar():
+    """Return the ResQ logo as a PIL Image for chat avatars, fallback to emoji."""
+    try:
+        from PIL import Image as _PIL
+        logo = Path(__file__).parent / "assets" / "animations" / "logo.png"
+        if logo.exists():
+            return _PIL.open(logo)
+    except Exception:
+        pass
+    return "🚑"
 
 
 def render_chat_history() -> None:
     if not st.session_state.chat_history:
-        st.info("ResQ will ask short follow-up questions here.")
-        return
+        return  # empty state — let the container breathe
 
+    avatar = _ai_avatar()
     for msg in st.session_state.chat_history:
-        role = "assistant" if msg["role"] == "assistant" else "user"
-        with st.chat_message(role):
-            st.write(msg["content"])
+        if msg["role"] == "assistant":
+            with st.chat_message("assistant", avatar=avatar):
+                st.markdown(msg["content"])
+        else:
+            with st.chat_message("user"):
+                st.markdown(msg["content"])
+
+
+QUICK_CASES = [
+    ("not_breathing", "💔", "Unconscious",   "The person is unconscious and may not be breathing normally."),
+    ("chest_pain",    "🫀", "Chest Pain",    "The person has severe chest pain and may be having a heart attack."),
+    ("severe_bleeding","🩸","Bleeding",      "There is heavy bleeding that will not stop."),
+    ("choking",       "🫁", "Choking",       "The person is choking and cannot speak or breathe properly."),
+    ("stroke",        "🧠", "Stroke Signs",  "The person has slurred speech, face droop, or one-sided weakness."),
+]
 
 
 def render_emergency_page():
-    st.markdown('<div class="page-title">ResQ</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="page-subtitle">Emergency help for ordinary people before professional help arrives.</div>',
-        unsafe_allow_html=True,
-    )
+    # Handle quick-case pill click (query param driven so active state persists on rerun)
+    qc = st.query_params.get("quickcase", "")
+    if qc and not st.session_state.action_mode:
+        for key, _icon, _label, prompt in QUICK_CASES:
+            if key == qc:
+                if run_triage(prompt):
+                    st.query_params.clear()
+                    st.rerun()
+                break
 
     if not st.session_state.action_mode:
+        # ── Hero ──────────────────────────────────────────────────
         st.markdown(
             """
             <div class="hero-card center-input">
-              <div class="hero-title">What is happening?</div>
+              <div class="hero-eyebrow">AI-powered first-aid guidance</div>
+              <div class="hero-title">What's the emergency?</div>
               <div class="hero-subtitle">
-                Describe the emergency, record a voice note, or use the camera if it is safe.
-                ResQ will route you into guided action mode.
+                Tap a common emergency below for instant guidance,
+                or describe the situation yourself.
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        mode = st.radio(
-            "Input mode",
-            ["Type", "Voice", "Camera"],
-            horizontal=True,
-            label_visibility="collapsed",
-        )
+        # ── Quick-case pills ──────────────────────────────────────
+        pills_html = '<div class="quick-grid">'
+        for key, icon, label, _ in QUICK_CASES:
+            active_cls = "active" if key == qc else ""
+            pills_html += (
+                f'<a class="quick-pill {active_cls}" href="?quickcase={key}" target="_self">'
+                f'<span class="quick-icon">{icon}</span>'
+                f'<span>{label}</span>'
+                f'</a>'
+            )
+        pills_html += "</div>"
+        st.markdown(pills_html, unsafe_allow_html=True)
 
+        # ── Divider ───────────────────────────────────────────────
+        st.markdown('<div class="or-divider">or describe it yourself</div>', unsafe_allow_html=True)
+
+        # ── Input mode segmented control ──────────────────────────
+        input_modes = [
+            ("type",   "⌨️", "Type"),
+            ("voice",  "🎤", "Voice"),
+            ("camera", "📷", "Camera"),
+        ]
+        mode = st.query_params.get("mode", "type")
+        if mode not in ("type", "voice", "camera"):
+            mode = "type"
+
+        mode_html = '<div class="mode-selector">'
+        for key, icon, label in input_modes:
+            active_cls = "active" if key == mode else ""
+            mode_html += (
+                f'<a class="mode-pill {active_cls}" href="?mode={key}" target="_self">'
+                f'{icon} {label}'
+                f'</a>'
+            )
+        mode_html += "</div>"
+        st.markdown(mode_html, unsafe_allow_html=True)
+
+        # ── Input widgets ─────────────────────────────────────────
         user_text = ""
         audio_file = None
         image_file = None
 
         with st.container():
-            if mode == "Type":
+            if mode == "type":
                 user_text = st.text_area(
                     "Describe the emergency",
                     placeholder="Example: My dad suddenly has slurred speech and his right arm is weak.",
                     height=120,
                     label_visibility="collapsed",
                 )
-            elif mode == "Voice":
+            elif mode == "voice":
                 user_text = st.text_area(
                     "Optional typed context",
                     placeholder="Optional: add any quick context here",
-                    height=100,
+                    height=80,
                     label_visibility="collapsed",
                 )
                 audio_file = st.audio_input("Record symptoms")
+                if audio_file is not None:
+                    audio_hash = hash(audio_file.getvalue())
+                    if audio_hash != st.session_state.get("_last_audio_hash"):
+                        st.session_state._last_audio_hash = audio_hash
+                        if run_triage(user_text, audio_file=audio_file):
+                            st.rerun()
             else:
                 user_text = st.text_area(
                     "Optional typed context",
                     placeholder="Optional: add any quick context here",
-                    height=100,
+                    height=80,
                     label_visibility="collapsed",
                 )
                 image_file = st.camera_input("Capture image if safe")
 
         st.write("")
-        quick_cols = st.columns(5)
-        quick_cases = [
-            ("Person is unconscious", "The person is unconscious and may not be breathing normally."),
-            ("Chest pain", "The person has severe chest pain and may be having a heart attack."),
-            ("Heavy bleeding", "There is heavy bleeding that will not stop."),
-            ("Choking", "The person is choking and cannot speak or breathe properly."),
-            ("Stroke symptoms", "The person has slurred speech, face droop, or one-sided weakness."),
-        ]
-
-        for col, (label, prompt) in zip(quick_cols, quick_cases):
-            with col:
-                if st.button(label, use_container_width=True):
-                    run_triage(prompt)
-                    st.rerun()
-
-        if st.button("Start emergency guidance", type="primary", use_container_width=True):
-            run_triage(user_text, audio_file=audio_file, image_file=image_file)
-            st.rerun()
+        if st.button("Get emergency guidance →", type="primary", use_container_width=True):
+            if run_triage(user_text, audio_file=audio_file, image_file=image_file):
+                st.rerun()
 
     else:
+        # Fire scroll immediately so the sticky chat_input footer
+        # appearing for the first time doesn't pull the viewport down.
+        scroll_to_top()
+
         case_key = st.session_state.current_case or "other"
         case_data = CASE_GUIDES.get(case_key, CASE_GUIDES["other"])
 
         if st.session_state.escalate_now:
             render_call_banner(case_data["title"], can_cancel=True)
 
-        follow_up = st.chat_input("Answer the last question or add a new detail")
+        follow_up = st.chat_input("Answer the question above or add any new detail")
         if follow_up:
             run_triage(follow_up)
             st.rerun()
 
-        left, right = st.columns([1.15, 0.85], gap="large")
+        left, right = st.columns([1.2, 0.8], gap="large")
 
         with left:
-            st.markdown("### Live guidance")
-            render_chat_history()
+            with st.container(height=500, border=False):
+                render_chat_history()
 
         with right:
             if case_data.get("animation"):
                 render_animation(case_data["animation"], case_data["title"])
-
-            st.markdown("### Current guidance")
-            current_instruction = (
-                st.session_state.get("current_instruction")
-                or case_data["steps"][st.session_state.current_step]
-            )
-
-            st.markdown(
-                f"""
-                <div class="instruction-box">
-                  <div class="instruction-title">Do this now</div>
-                  <div>{current_instruction}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            if st.session_state.get("current_why"):
-                st.markdown(
-                    f"""
-                    <div class="glass-card" style="margin-top:0.75rem;">
-                      <strong>Why this matters</strong><br>
-                      {st.session_state.current_why}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            if st.session_state.get("current_question"):
-                st.markdown(
-                    f"""
-                    <div class="glass-card" style="margin-top:0.75rem;">
-                      <strong>Next question</strong><br>
-                      {st.session_state.current_question}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown("### Protocol steps")
-            for idx, step in enumerate(case_data["steps"]):
-                label = "Current step" if idx == st.session_state.current_step else f"Step {idx + 1}"
-                st.markdown(
-                    f"""
-                    <div class="instruction-box">
-                      <div class="instruction-title">{label}</div>
-                      <div>{step}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
 
             render_handoff_summary(
                 summary=st.session_state.handoff_summary or case_data["summary"],
@@ -313,48 +351,119 @@ def render_emergency_page():
                 symptom_start=st.session_state.symptom_start_time,
             )
 
-            action_cols = st.columns(2)
-            with action_cols[0]:
-                if st.button("Back to intake", use_container_width=True):
-                    st.session_state.action_mode = False
-                    st.session_state.current_case = None
-                    st.session_state.current_step = 0
-                    st.session_state.escalate_now = False
-                    st.session_state.current_instruction = ""
-                    st.session_state.current_question = ""
-                    st.session_state.current_why = ""
-                    st.rerun()
+            if st.button("← Back to intake", use_container_width=True):
+                st.session_state.action_mode = False
+                st.session_state.current_case = None
+                st.session_state.current_step = 0
+                st.session_state.escalate_now = False
+                st.session_state.current_instruction = ""
+                st.session_state.current_question = ""
+                st.session_state.current_why = ""
+                st.session_state.chat_history = []
+                st.session_state.pop("_last_audio_hash", None)
+                st.rerun()
 
-            with action_cols[1]:
-                if st.button("Reset demo", use_container_width=True):
-                    reset_demo()
-                    st.rerun()
+        # Fire again after all content is in the DOM to catch any late layout shifts
+        scroll_to_top()
 
 
 def render_learn_page():
-    st.markdown('<div class="page-title">Learn / Practice</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-title">Learn First Aid</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="page-subtitle">Judge-friendly demo page for the five MVP emergency guides.</div>',
+        '<div class="page-subtitle">Step-by-step guides for the five most common emergencies. '
+        'Select a topic to read the protocol, then practice with AI.</div>',
         unsafe_allow_html=True,
     )
 
-    cols = st.columns(2)
-    cases = ["not_breathing", "stroke", "choking", "severe_bleeding", "chest_pain"]
+    LEARN_CASES = [
+        ("not_breathing", "💔", "CPR"),
+        ("stroke",        "🧠", "Stroke"),
+        ("choking",       "🫁", "Choking"),
+        ("severe_bleeding","🩸","Bleeding"),
+        ("chest_pain",    "🫀", "Chest Pain"),
+    ]
 
-    for idx, key in enumerate(cases):
+    tab_labels = [f"{icon} {label}" for _, icon, label in LEARN_CASES]
+    tabs = st.tabs(tab_labels)
+
+    for tab, (key, icon, label) in zip(tabs, LEARN_CASES):
         case = CASE_GUIDES[key]
-        with cols[idx % 2]:
-            st.markdown(
-                f"<div class='glass-card'><h3>{case['title']}</h3><p>{case['summary']}</p></div>",
-                unsafe_allow_html=True,
-            )
-            if case["animation"]:
-                render_animation(case["animation"], case["title"])
+        with tab:
+            left, right = st.columns([1.1, 0.9], gap="large")
+
+            with left:
+                # Summary banner
+                st.markdown(
+                    f"""
+                    <div class="glass-card" style="margin-bottom:1rem;">
+                      <div class="learn-case-title">{icon} {case['title']}</div>
+                      <div class="learn-case-summary">{case['summary']}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                # Steps
+                st.markdown('<div class="learn-section-label">What to do — step by step</div>', unsafe_allow_html=True)
+                for i, step in enumerate(case["steps"], 1):
+                    st.markdown(
+                        f"""
+                        <div class="learn-step">
+                          <div class="learn-step-num">{i}</div>
+                          <div class="learn-step-text">{step}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                # Do-not warnings
+                if case.get("do_not"):
+                    st.markdown('<div class="learn-section-label" style="margin-top:1rem;">What NOT to do</div>', unsafe_allow_html=True)
+                    warnings_html = "".join(
+                        f'<div class="learn-warning-item">⚠ {w}</div>'
+                        for w in case["do_not"]
+                    )
+                    st.markdown(f'<div class="warning-box">{warnings_html}</div>', unsafe_allow_html=True)
+
+            with right:
+                if case.get("animation"):
+                    render_animation(case["animation"], case["title"])
+
+                # Practice CTA
+                practice_prompt = {
+                    "not_breathing":  "The person is unconscious and may not be breathing normally.",
+                    "stroke":         "The person has slurred speech, face droop, or one-sided weakness.",
+                    "choking":        "The person is choking and cannot speak or breathe properly.",
+                    "severe_bleeding":"There is heavy bleeding that will not stop.",
+                    "chest_pain":     "The person has severe chest pain and may be having a heart attack.",
+                }.get(key, "")
+
+                st.markdown(
+                    f"""
+                    <div class="glass-card" style="margin-top:1rem;text-align:center;">
+                      <div class="learn-section-label" style="margin-bottom:0.5rem;">Ready to practice?</div>
+                      <div style="color:var(--text-muted);font-size:0.9rem;margin-bottom:0.9rem;">
+                        Run a live AI simulation for <strong>{case['title']}</strong>.
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button(f"Practice {label} →", key=f"practice_{key}", use_container_width=True, type="primary"):
+                    reset_demo()
+                    if run_triage(practice_prompt):
+                        st.query_params["page"] = "Emergency"
+                        st.rerun()
 
 
 def main():
     init_state()
     st.session_state.page = current_page_from_query()
+
+    # Handle 911 cancel before any rendering
+    if st.query_params.get("cancel_911") == "1":
+        st.session_state.escalate_now = False
+        del st.query_params["cancel_911"]
 
     apply_styles()
     render_top_nav(st.session_state.page)

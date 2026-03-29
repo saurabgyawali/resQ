@@ -301,6 +301,268 @@ div[data-baseweb="select"] > div,
   padding: 0.8rem 1rem;
 }
 
+/* ── Quick-case pill grid ─────────────────────────────────────── */
+.quick-grid {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 1rem 0 0.25rem 0;
+}
+
+.quick-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.9rem 1.15rem;
+  border-radius: 20px;
+  background: var(--surface-strong);
+  border: 1.5px solid var(--border);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.20s ease;
+  min-width: 100px;
+  text-align: center;
+  box-shadow: var(--shadow-soft);
+  color: var(--text-main) !important;
+  text-decoration: none !important;
+}
+
+.quick-pill:hover {
+  background: rgba(252,208,89,0.18);
+  border-color: rgba(252,208,89,0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(43,43,43,0.12);
+  color: var(--text-main) !important;
+}
+
+.quick-pill.active {
+  background: linear-gradient(160deg, #FCD059 0%, #F5C74B 100%);
+  border-color: rgba(43,43,43,0.12);
+  box-shadow: 0 12px 28px rgba(252,208,89,0.42);
+  transform: translateY(-2px);
+  color: var(--text-main) !important;
+}
+
+.quick-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  display: block;
+}
+
+/* ── Hero eyebrow label ───────────────────────────────────────── */
+.hero-eyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted) !important;
+  margin-bottom: 0.55rem;
+}
+
+/* ── "or describe it yourself" divider ───────────────────────── */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-muted) !important;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 1rem auto 0.75rem auto;
+  max-width: 720px;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Input mode segmented control ────────────────────────────── */
+.mode-selector {
+  display: flex;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 0.28rem;
+  gap: 0.2rem;
+  max-width: 340px;
+  margin: 0 auto 1.25rem auto;
+  box-shadow: var(--shadow-soft);
+}
+
+.mode-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.62rem 0.75rem;
+  border-radius: 13px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  color: var(--text-muted) !important;
+  text-decoration: none !important;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.mode-pill:hover {
+  background: rgba(252,208,89,0.20);
+  color: var(--text-main) !important;
+}
+
+.mode-pill.active {
+  background: linear-gradient(160deg, #FCD059 0%, #F5C74B 100%);
+  color: var(--text-main) !important;
+  box-shadow: 0 3px 10px rgba(252,208,89,0.32);
+}
+
+/* ── st.tabs override ────────────────────────────────────────── */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+[data-testid="stTabs"] button[data-baseweb="tab"] {
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+  color: var(--text-muted) !important;
+  padding: 0.55rem 1rem !important;
+  border: none !important;
+  background: transparent !important;
+  transition: all 0.18s ease !important;
+}
+
+[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+  background: rgba(252,208,89,0.18) !important;
+  color: var(--text-main) !important;
+}
+
+[data-testid="stTabs"] button[aria-selected="true"][data-baseweb="tab"] {
+  background: linear-gradient(160deg, #FCD059 0%, #F5C74B 100%) !important;
+  color: var(--text-main) !important;
+  box-shadow: 0 4px 12px rgba(252,208,89,0.30) !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+[data-testid="stTabs"] [data-baseweb="tab-border"] {
+  display: none !important;
+}
+
+/* ── Learn page components ────────────────────────────────────── */
+.learn-case-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  margin-bottom: 0.3rem;
+}
+
+.learn-case-summary {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.learn-section-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted) !important;
+  margin-bottom: 0.6rem;
+}
+
+.learn-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.learn-step-num {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #FCD059 0%, #F5C74B 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 0.85rem;
+  color: var(--text-main);
+}
+
+.learn-step-text {
+  padding-top: 0.15rem;
+  line-height: 1.5;
+  font-size: 0.93rem;
+}
+
+.learn-warning-item {
+  padding: 0.45rem 0;
+  font-size: 0.91rem;
+  color: var(--danger) !important;
+  border-bottom: 1px solid rgba(214,64,69,0.10);
+}
+
+.learn-warning-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ── Chat container (scrollable area) ────────────────────────── */
+[data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"] {
+  padding-top: 0.25rem !important;
+}
+
+/* ── Chat messages ────────────────────────────────────────────── */
+[data-testid="stChatMessage"] {
+  border-radius: 16px !important;
+  padding: 0.6rem 0.85rem !important;
+  margin-bottom: 0.6rem !important;
+  border: 1px solid transparent !important;
+}
+
+/* User messages — yellow tint, matching app accent */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+  background: rgba(252, 208, 89, 0.14) !important;
+  border-color: rgba(252, 208, 89, 0.32) !important;
+}
+
+/* Assistant messages — crisp white glass */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(43, 43, 43, 0.09) !important;
+  box-shadow: 0 4px 12px rgba(43, 43, 43, 0.06) !important;
+}
+
+/* Bullet lists inside assistant replies */
+[data-testid="stChatMessage"] ul {
+  margin: 0.35rem 0 0 0.1rem !important;
+  padding-left: 1.2rem !important;
+}
+
+[data-testid="stChatMessage"] li {
+  margin-bottom: 0.3rem !important;
+  line-height: 1.55 !important;
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .hero-title {
     font-size: 1.8rem;
@@ -318,5 +580,14 @@ div[data-baseweb="select"] > div,
   .call-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .quick-grid {
+    gap: 0.5rem;
+  }
+
+  .quick-pill {
+    min-width: 88px;
+    padding: 0.75rem 0.85rem;
   }
 }
